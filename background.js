@@ -9,6 +9,23 @@ function activateTab(windowId, index) {
 		});
 }
 
+async function hasActivationJustRecentlyHappened(windowId, testOnceMore = true) {
+	const maxDeltaMsec = 50;  // New tab activation will take at least 50 msec after removal.
+	const deltaMsec = new Date() - activeTab[windowId].time;
+	console.log("The last activation happened", deltaMsec, "ms before.");
+	if (deltaMsec < maxDeltaMsec) {
+		return true;
+	}
+	else if (testOnceMore) {  // activeTab is not rewrited yet?
+		const timeoutMsec = 10;
+		await (() => new Promise(_ => setTimeout(_, timeoutMsec)))();  // XXX: This is a dirty hack to wait for changing activation info.
+		return hasActivationJustRecentlyHappened(windowId, false);
+	}
+	else {  // Give up!
+		return false;
+	}
+}
+
 browser.tabs.onActivated.addListener(activeInfo => {
 	browser.tabs.get(activeInfo.tabId)
 		.then(tab => {
@@ -17,66 +34,68 @@ browser.tabs.onActivated.addListener(activeInfo => {
 		});
 });
 
-browser.tabs.onRemoved.addListener((tabId, removeInfo) => {
+browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	if (removeInfo.isWindowClosing) {
 		return;
 	}
 
-	// XXX: Sucks!
-	browser.tabs.get(tabId)
-		.then(tab => {  // The tab might be still alive. In this case, maybe "browser.tabs.animate" is true.
-			if (tab.index == 0) {  // TODO: Handle the rightmost tab to reduce costs.
-				return;
-			}
+	console.log(`onRemoved: id#${tabId}`);
+	const tabs = await browser.tabs.query({ currentWindow: true });
+	const activatedTab = tabs.find(tab => tab.active);
 
+	if (!await hasActivationJustRecentlyHappened(activatedTab.windowId)) {
+		// The current active tab might not be newly activated by removal.
+		console.log("onRemoved: Not active tab has removed.");
+		return;
+	}
 
-			if (activeTab[tab.windowId].id === tabId) {  // The current active tab might NOT be newly activated by removal.
-				console.log(`onRemoved: The active tab of index#${tab.index} in window#${tab.windowId} is still alive and active` +
-					" but it will been removed soon.");
-				activateTab(tab.windowId, tab.index - 1);
+	const removedTab = tabs.find(tab => tab.id == tabId);
+	if (removedTab) {
+		// The removed tab info is retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is true.
+		console.log("onRemoved: Animation mode!");
+
+		if (activatedTab.index == removedTab.index + 1) {  // It is certain the rightmost tab was not removed.
+			console.log(
+				"onRemoved:",
+				`The tab of index#${removedTab.index} in window#${removedTab.windowId}`,
+				"is dying and will be removed soon."
+			);
+
+			if (removedTab.index > 0) {
+				activateTab(removedTab.windowId, removedTab.index - 1);
 			}
 			else {
-				const maxDeltaMsec = 50;  // XXX: New tab activation will take at least 50 msec after removal.
-				const deltaMsec = new Date() - activeTab[tab.windowId].time;
-				if (deltaMsec < maxDeltaMsec) {  // The current active tab might be newly activated by removal.
-					console.log(`onRemoved: The tab of index#${tab.index} in window#${tab.windowId} is still alive,` +
-						" but it is no longer active and will been removed soon.");
-					activateTab(tab.windowId, tab.index - 1);
-				}
+				console.log("onRemoved: The leftmost tab has removed.");
+
 			}
+		}
+		else {
+			console.log("onRemoved: The rightmost tab has removed, or something.");
+		}
+	}
+	else {
+		// The removed tab info is NOT retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is false.
+		console.log("onRemoved: Non-animation mode!");
 
-		})
-		.catch(e => {  // The tab might have gone away so that its information is not retrievable.
-			if (!("message" in e) || !/^Invalid tab ID/.test(e.message)) {  // "Invalid tab ID" error was thrown?
-				console.error(e);
-				return;
-			}
+		if (activatedTab.index === 0) {
+			console.log("onRemoved: The leftmost tab has removed, or something.");
+			return;
+		}
 
-			browser.tabs.query({ currentWindow: true })
-				.then(tabs => {
-					// Try to judge whether the removed tab was active or not, by a crazy way.
-					const windowId = tabs[0].windowId;
-					const maxDeltaMsec = 50;  // XXX: New tab activation will occur within 50 msec after removal.
-					const deltaMsec = new Date() - activeTab[windowId].time;
-					if (deltaMsec > maxDeltaMsec) {  // The current active tab might not be newly activated by removal.
-						return;
-					}
-
-					const maxIndexBeforeRemoval = tabs.length;
-					for (const tab of tabs) {
-						if (tab.active) {
-							if (tab.index > 0 && prevActiveTab[windowId].index < maxIndexBeforeRemoval && prevActiveTab[windowId].id === tabId) {
-								console.log("onRemoved: The previous active tab," +
-									` index#${tab.index} of window#${windowId}, might have been removed` +
-									" and the right tab might have already been activated.");
-								activateTab(windowId, tab.index - 1);
-							}
-							break;
-						}
-					}
-				});
-
-		});
+		const tabsLengthAfterRemoval = tabs.length;
+		const removed = prevActiveTab[activatedTab.windowId];
+		if (removed.index < tabsLengthAfterRemoval && removed.id === tabId) {
+			console.log(
+				"onRemoved: The previous active tab,",
+				`index#${activatedTab.index} of window#${activatedTab.windowId}, might have been removed`,
+				"and the right tab might have already been activated."
+			);
+			activateTab(activatedTab.windowId, activatedTab.index - 1);
+		}
+		else {
+			console.log("onRemoved: The rightmost tab has removed, or something.");
+		}
+	}
 });
 
 browser.windows.onFocusChanged.addListener(windowId => {
