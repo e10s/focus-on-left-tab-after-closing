@@ -2,7 +2,7 @@
 	"manifest_version": 2,
 	"name": "Go Left",
 	"description": "When an active tab is closed, focuses on the left tab.",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"background": {
 		"scripts": [
 			"background.js"
