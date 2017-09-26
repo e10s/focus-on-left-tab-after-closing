@@ -9,21 +9,19 @@ function activateTab(windowId, index) {
 		});
 }
 
-async function hasActivationJustRecentlyHappened(windowId, testOnceMore = true) {
+function hasActivationJustRecentlyHappened(windowId) {
 	const maxDeltaMsec = 50;  // New tab activation will take at least 50 msec after removal.
-	const deltaMsec = new Date() - activeTab[windowId].time;
-	console.log("The last activation happened", deltaMsec, "ms before.");
-	if (deltaMsec < maxDeltaMsec) {
-		return true;
+
+	function tester() {
+		const deltaMsec = new Date() - activeTab[windowId].time;
+		console.log("The last activation happened", deltaMsec, "ms before.");
+		return deltaMsec < maxDeltaMsec;
 	}
-	else if (testOnceMore) {  // activeTab is not rewrited yet?
-		const timeoutMsec = 10;
-		await (() => new Promise(_ => setTimeout(_, timeoutMsec)))();  // XXX: This is a dirty hack to wait for changing activation info.
-		return hasActivationJustRecentlyHappened(windowId, false);
-	}
-	else {  // Give up!
-		return false;
-	}
+
+	const delay = ms => new Promise(_ => setTimeout(_, ms));
+
+	return tester() ||  // activeTab is not rewrited yet?
+		delay(maxDeltaMsec / 5).then(tester);  // XXX: This is a dirty hack to wait for changing activation info.
 }
 
 browser.tabs.onActivated.addListener(activeInfo => {
