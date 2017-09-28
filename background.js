@@ -96,6 +96,16 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	}
 });
 
+browser.tabs.onMoved.addListener((tabId, moveInfo) => {
+	browser.tabs.get(tabId)
+		.then(tab => {
+			if (tab.active) {
+				activeTab[moveInfo.windowId] = { index: moveInfo.toIndex, id: tab.id, time: +new Date() };
+				prevActiveTab[moveInfo.windowId] = activeTab[moveInfo.windowId];
+			}
+		});
+});
+
 browser.windows.onFocusChanged.addListener(windowId => {
 	browser.tabs.query({ active: true, windowId: windowId })
 		.then(tabs => {
