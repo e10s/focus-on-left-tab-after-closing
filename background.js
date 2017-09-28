@@ -51,49 +51,34 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	if (removedTab) {
 		// The removed tab info is retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is true.
 		console.log("onRemoved: Animation mode!");
-
-		if (activatedTab.index == removedTab.index + 1) {  // It is certain the rightmost tab was not removed.
-			console.log(
-				"onRemoved:",
-				`The tab of index#${removedTab.index} in window#${removedTab.windowId}`,
-				"is dying and will be removed soon."
-			);
-
-			if (removedTab.index > 0) {
-				activateTab(removedTab.windowId, removedTab.index - 1);
-			}
-			else {
-				console.log("onRemoved: The leftmost tab has removed.");
-
-			}
-		}
-		else {
-			console.log("onRemoved: The rightmost tab has removed, or something.");
-		}
+		var tabsLengthAfterRemoval = tabs.length - 1;
 	}
 	else {
 		// The removed tab info is NOT retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is false.
 		console.log("onRemoved: Non-animation mode!");
-
-		if (activatedTab.index === 0) {
-			console.log("onRemoved: The leftmost tab has removed, or something.");
-			return;
-		}
-
-		const tabsLengthAfterRemoval = tabs.length;
-		const removed = prevActiveTab[activatedTab.windowId];
-		if (removed.index < tabsLengthAfterRemoval && removed.id === tabId) {
-			console.log(
-				"onRemoved: The previous active tab,",
-				`index#${activatedTab.index} of window#${activatedTab.windowId}, might have been removed`,
-				"and the right tab might have already been activated."
-			);
-			activateTab(activatedTab.windowId, activatedTab.index - 1);
-		}
-		else {
-			console.log("onRemoved: The rightmost tab has removed, or something.");
-		}
+		var tabsLengthAfterRemoval = tabs.length;
 	}
+
+	if (tabsLengthAfterRemoval < 2) {
+		console.log("onRemoved: No-op.");
+		return;
+	}
+
+	const removed = prevActiveTab[activatedTab.windowId];
+	if (removed.id !== tabId) {
+		console.log("onRemoved: Something wrong!");
+		return;
+	}
+
+	const toBeActivatedTabIndex = Math.max(0, removed.index - 1);
+	console.log(
+		"onRemoved: The previous active tab,",
+		`index#${removed.index} of window#${activatedTab.windowId}, has been removed`,
+		"and other tab has already been activated.",
+		`So activate the appropriate tab of index#${toBeActivatedTabIndex} newly!`
+	);
+
+	activateTab(activatedTab.windowId, toBeActivatedTabIndex);
 });
 
 browser.tabs.onMoved.addListener((tabId, moveInfo) => {
