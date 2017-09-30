@@ -1,11 +1,12 @@
 let activeTab = {};
 let prevActiveTab = {};
 
+const delay = ms => new Promise(_ => setTimeout(_, ms));
+
 function activateTab(windowId, index) {
 	browser.tabs.query({ index: index, windowId: windowId })
 		.then(tabs => {
 			console.log(`To be activated: index#${index} of window#${windowId}`);
-			const delay = ms => new Promise(_ => setTimeout(_, ms));
 			browser.tabs.update(tabs[0].id, { active: true })
 				.catch(e => {  // The removed tab, which may be the leftmost, is still alive and active internally.
 					const waitForDeathMsec = 50;
@@ -23,8 +24,6 @@ function hasActivationJustRecentlyHappened(windowId) {
 		console.log("The last activation happened", deltaMsec, "ms before.");
 		return deltaMsec < maxDeltaMsec;
 	}
-
-	const delay = ms => new Promise(_ => setTimeout(_, ms));
 
 	return tester() ||  // activeTab is not rewrited yet?
 		delay(maxDeltaMsec / 5).then(tester);  // XXX: This is a dirty hack to wait for changing activation info.
