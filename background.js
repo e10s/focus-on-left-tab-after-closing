@@ -5,7 +5,13 @@ function activateTab(windowId, index) {
 	browser.tabs.query({ index: index, windowId: windowId })
 		.then(tabs => {
 			console.log(`To be activated: index#${index} of window#${windowId}`);
-			browser.tabs.update(tabs[0].id, { active: true });
+			const delay = ms => new Promise(_ => setTimeout(_, ms));
+			browser.tabs.update(tabs[0].id, { active: true })
+				.catch(e => {  // The removed tab, which may be the leftmost, is still alive and active internally.
+					const waitForDeathMsec = 50;
+					("message" in e) && /^Invalid tab ID/.test(e.message) &&
+						delay(waitForDeathMsec).then(_ => activateTab(windowId, index));  // FIXME: Potential infinite recursion looks bad.
+				});
 		});
 }
 
