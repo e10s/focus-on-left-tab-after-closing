@@ -21,7 +21,9 @@ function hasActivationJustRecentlyHappened(windowId) {
 
 	function tester() {
 		const deltaMsec = new Date() - activeTab[windowId].time;
-		console.log("The last activation happened", deltaMsec, "ms before.");
+		console.log(
+			`The last activation, index#${activeTab[windowId].index} of window#${windowId},`,
+			`happened ${deltaMsec} ms before.`);
 		return deltaMsec < maxDeltaMsec;
 	}
 
@@ -48,7 +50,7 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 
 	if (!await hasActivationJustRecentlyHappened(activatedTab.windowId)) {
 		// The current active tab might not be newly activated by removal.
-		console.log("onRemoved: Not active tab has removed.");
+		console.log("onRemoved: Not active tab has been removed.");
 		return;
 	}
 
