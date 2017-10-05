@@ -5,17 +5,37 @@ let prevActiveTab = {};
 
 const delay = ms => new Promise(_ => setTimeout(_, ms));
 
-function activateTab(windowId, index) {
-	browser.tabs.query({ index: index, windowId: windowId })
-		.then(tabs => {
-			console.log(`To be activated: index#${index} of window#${windowId}`);
-			browser.tabs.update(tabs[0].id, { active: true })
-				.catch(e => {  // The removed tab, which may be the leftmost, is still alive and active internally.
-					const waitForDeathMsec = 50;
-					("message" in e) && /^Invalid tab ID/.test(e.message) &&
-						delay(waitForDeathMsec).then(_ => activateTab(windowId, index));  // FIXME: Potential infinite recursion looks bad.
-				});
-		});
+async function activateTab(windowId, index) {
+	console.log(`To be activated: index#${index} of window#${windowId}`);
+
+	async function activateTabById(tabId) {
+		try {
+			await browser.tabs.update(tabId, { active: true });
+			return true;
+		}
+		catch (e) {
+			if (("message" in e) && /^Invalid tab ID/.test(e.message)) {
+				return false;
+			}
+			throw e;
+		}
+	}
+
+	const attemptLimits = 10;
+	for (let i = 0; i < attemptLimits; i++) {
+		const tab = (await browser.tabs.query({ index: index, windowId: windowId }))[0];
+		if (!tab) {
+			return;
+		}
+
+		if (await activateTabById(tab.id)) {
+			return;
+		}
+
+		// The removed tab, which may be the leftmost, is still alive and active internally.
+		const waitForDeathMsec = 50;
+		await delay(waitForDeathMsec);
+	}
 }
 
 function hasActivationJustRecentlyHappened(windowId) {
