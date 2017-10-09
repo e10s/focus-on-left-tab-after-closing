@@ -68,32 +68,33 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 
 	console.log(`onRemoved: id#${tabId}`);
 	const tabs = await browser.tabs.query({ currentWindow: true });
-	const activatedTab = tabs.find(tab => tab.active);
+	const windowId = removeInfo.windowId;
 
-	if (!await hasActivationJustRecentlyHappened(activatedTab.windowId)) {
+	if (!await hasActivationJustRecentlyHappened(windowId)) {
 		// The current active tab might not be newly activated by removal.
 		console.log("onRemoved: Not active tab has been removed.");
 		return;
 	}
 
-	const removedTab = tabs.find(tab => tab.id == tabId);
-	if (removedTab) {
-		// The removed tab info is retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is true.
-		console.log("onRemoved: Animation mode!");
-		var tabsLengthAfterRemoval = tabs.length - 1;
-	}
-	else {
-		// The removed tab info is NOT retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is false.
-		console.log("onRemoved: Non-animation mode!");
-		var tabsLengthAfterRemoval = tabs.length;
+	function tabsLengthAfterRemoval() {
+		if (tabs.some(tab => tab.id == tabId)) {
+			// The removed tab info is retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is true.
+			console.log("onRemoved: Animation mode!");
+			return tabs.length - 1;
+		}
+		else {
+			// The removed tab info is NOT retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is false.
+			console.log("onRemoved: Non-animation mode!");
+			return tabs.length;
+		}
 	}
 
-	if (tabsLengthAfterRemoval < 2) {
+	if (tabsLengthAfterRemoval() < 2) {
 		console.log("onRemoved: No-op.");
 		return;
 	}
 
-	const removed = prevActiveTab[activatedTab.windowId];
+	const removed = prevActiveTab[windowId];
 	if (removed.id !== tabId) {
 		console.log("onRemoved: Something wrong!");
 		return;
@@ -102,22 +103,19 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	const toBeActivatedTabIndex = Math.max(0, removed.index - 1);
 	console.log(
 		"onRemoved: The previous active tab,",
-		`index#${removed.index} of window#${activatedTab.windowId}, has been removed`,
+		`index#${removed.index} of window#${windowId}, has been removed`,
 		"and other tab has already been activated.",
 		`So activate the appropriate tab of index#${toBeActivatedTabIndex} newly!`
 	);
 
-	activateTab(activatedTab.windowId, toBeActivatedTabIndex);
+	activateTab(windowId, toBeActivatedTabIndex);
 });
 
 browser.tabs.onMoved.addListener((tabId, moveInfo) => {
-	browser.tabs.get(tabId)
-		.then(tab => {
-			if (tab.active) {
-				activeTab[moveInfo.windowId] = { index: moveInfo.toIndex, id: tab.id, time: +new Date() };
-				prevActiveTab[moveInfo.windowId] = activeTab[moveInfo.windowId];
-			}
-		});
+	if (activeTab[moveInfo.windowId].id == tabId) {
+		activeTab[moveInfo.windowId] = { index: moveInfo.toIndex, id: tabId, time: +new Date() };
+		prevActiveTab[moveInfo.windowId] = activeTab[moveInfo.windowId];
+	}
 });
 
 browser.windows.onFocusChanged.addListener(windowId => {
