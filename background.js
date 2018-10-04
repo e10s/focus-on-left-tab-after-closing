@@ -100,15 +100,24 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 		return;
 	}
 
-	const toBeActivatedTabIndex = Math.max(0, removed.index - 1);
-	console.log(
-		"onRemoved: The previous active tab,",
-		`index#${removed.index} of window#${windowId}, has been removed`,
-		"and other tab has already been activated.",
-		`So activate the appropriate tab of index#${toBeActivatedTabIndex} newly!`
-	);
+        var toBeActivatedTabIndex = removed.index - 1;
 
-	activateTab(windowId, toBeActivatedTabIndex);
+        while (toBeActivatedTabIndex > 0) {
+                var toBeActivatedTab = await browser.tabs.get(toBeActivatedTabIndex);
+                if (!toBeActivatedTab.hidden) {
+	                console.log(
+		                "onRemoved: The previous active tab,",
+		                `index#${removed.index} of window#${windowId}, has been removed`,
+		                "and other tab has already been activated.",
+		                `So activate the appropriate tab of index#${toBeActivatedTabIndex} newly!`
+	                );
+
+	                activateTab(windowId, toBeActivatedTabIndex);
+                        break;
+                }
+                toBeActivatedTabIndex--;
+        }
+
 });
 
 browser.tabs.onMoved.addListener((tabId, moveInfo) => {
