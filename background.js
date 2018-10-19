@@ -27,6 +27,17 @@ async function activateTab(windowId, index) {
 		if (!tab) {
 			return;
 		}
+		// If the tab is hidden, don't switch to it.
+		if (tab.hidden) {
+			if (index == 0) {
+				console.log("leftmost tab is hidden")
+				return;
+			}
+			// Repeat the current iteration without delay
+			index--;
+			i--;
+			continue;
+		}
 
 		if (await activateTabById(tab.id)) {
 			return;
@@ -67,7 +78,7 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	}
 
 	console.log(`onRemoved: id#${tabId}`);
-	const tabs = await browser.tabs.query({ currentWindow: true });
+	const tabs = await browser.tabs.query({ currentWindow: true, hidden: false });
 	const windowId = removeInfo.windowId;
 
 	if (!await hasActivationJustRecentlyHappened(windowId)) {
@@ -100,15 +111,24 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 		return;
 	}
 
-	const toBeActivatedTabIndex = Math.max(0, removed.index - 1);
+	const sortIndex = tab => tab.index >= removed.index ? -tab.index : tab.index;
+	console.log(`ltabs ${tabs.length} ${sortIndex(tabs[0])}`)
+	var toActivateTab;
+	try {
+		toActivateTab = tabs.reduce((a, b) => sortIndex(a) > sortIndex(b) ? a : b)
+	} catch (e) {
+		console.log(e)
+	}
+        console.log(`tab ${toActivateTab}`)
+
 	console.log(
 		"onRemoved: The previous active tab,",
 		`index#${removed.index} of window#${windowId}, has been removed`,
 		"and other tab has already been activated.",
-		`So activate the appropriate tab of index#${toBeActivatedTabIndex} newly!`
+		`So activate the appropriate tab of index#${toActivateTab.index} newly!`
 	);
 
-	activateTab(windowId, toBeActivatedTabIndex);
+	activateTab(windowId, toActivateTab.index);
 });
 
 browser.tabs.onMoved.addListener((tabId, moveInfo) => {
