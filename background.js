@@ -30,7 +30,7 @@ async function activateTab(windowId, index) {
 		// If the tab is hidden, don't switch to it.
 		if (tab.hidden) {
 			if (index == 0) {
-				console.log("leftmost tab is hidden")
+				console.log("leftmost tab is hidden");
 				return;
 			}
 			// Repeat the current iteration without delay
@@ -112,14 +112,14 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	}
 
 	const sortIndex = tab => tab.index >= removed.index ? -tab.index : tab.index;
-	console.log(`ltabs ${tabs.length} ${sortIndex(tabs[0])}`)
+	console.log(`ltabs ${tabs.length} ${sortIndex(tabs[0])}`);
 	var toActivateTab;
 	try {
-		toActivateTab = tabs.reduce((a, b) => sortIndex(a) > sortIndex(b) ? a : b)
+		toActivateTab = tabs.reduce((a, b) => sortIndex(a) > sortIndex(b) ? a : b);
 	} catch (e) {
-		console.log(e)
+		console.log(e);
 	}
-        console.log(`tab ${toActivateTab}`)
+	console.log(`tab ${toActivateTab}`);
 
 	console.log(
 		"onRemoved: The previous active tab,",
