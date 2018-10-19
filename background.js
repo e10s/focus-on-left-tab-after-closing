@@ -78,7 +78,7 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	}
 
 	console.log(`onRemoved: id#${tabId}`);
-	const tabs = await browser.tabs.query({ currentWindow: true, hidden: false });
+	const visibleTabs = await browser.tabs.query({ currentWindow: true, hidden: false });
 	const windowId = removeInfo.windowId;
 
 	if (!await hasActivationJustRecentlyHappened(windowId)) {
@@ -88,15 +88,15 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 	}
 
 	function tabsLengthAfterRemoval() {
-		if (tabs.some(tab => tab.id == tabId)) {
+		if (visibleTabs.some(tab => tab.id == tabId)) {
 			// The removed tab info is retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is true.
 			console.log("onRemoved: Animation mode!");
-			return tabs.length - 1;
+			return visibleTabs.length - 1;
 		}
 		else {
 			// The removed tab info is NOT retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is false.
 			console.log("onRemoved: Non-animation mode!");
-			return tabs.length;
+			return visibleTabs.length;
 		}
 	}
 
@@ -111,15 +111,10 @@ browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 		return;
 	}
 
-	const sortIndex = tab => tab.index >= removed.index ? -tab.index : tab.index;
-	console.log(`ltabs ${tabs.length} ${sortIndex(tabs[0])}`);
-	var toActivateTab;
-	try {
-		toActivateTab = tabs.reduce((a, b) => sortIndex(a) > sortIndex(b) ? a : b);
-	} catch (e) {
-		console.log(e);
-	}
-	console.log(`tab ${toActivateTab}`);
+	const prioritizer = tab => tab.index >= removed.index ? -tab.index : tab.index;
+	// console.log(`${visibleTabs.map(t => t.index)} -> ${visibleTabs.map(prioritizer)}, r=${removed.index}`);
+	// E.g., [0,1,3,4,6] will be mapped to [0,1,-3,-4,-6] when removed.index === 3.
+	const toActivateTab = visibleTabs.reduce((a, b) => prioritizer(a) > prioritizer(b) ? a : b);  // The tab with the max prio
 
 	console.log(
 		"onRemoved: The previous active tab,",
