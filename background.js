@@ -1,144 +1,72 @@
 "use strict";
 
-let activeTab = {};
-let prevActiveTab = {};
+// SCHEME:
+//
+// We handle only visible (== not hidden) tabs.
+// The successor of the leftmost tab is set to its right one when there are multiple tabs.
+// Otherwise, if there is only one tab, it has no specific successor, that is, a virtual tab with ID -1 is assigned.
+// For other visible tabs, the left of each tab is the successor.
+// Example:
+//    <==== <==== <=============
+// [ A ] [ B ] [ C ] [HIDDEN] [ D ]
+//    ====>
 
-const delay = ms => new Promise(_ => setTimeout(_, ms));
-
-async function activateTab(windowId, index) {
-	console.log(`To be activated: index#${index} of window#${windowId}`);
-
-	async function activateTabById(tabId) {
-		try {
-			await browser.tabs.update(tabId, { active: true });
-			return true;
-		}
-		catch (e) {
-			if (("message" in e) && /^Invalid tab ID/.test(e.message)) {
-				return false;
-			}
-			throw e;
-		}
-	}
-
-	const attemptLimits = 10;
-	for (let i = 0; i < attemptLimits; i++) {
-		const tab = (await browser.tabs.query({ index: index, windowId: windowId }))[0];
-		if (!tab) {
-			return;
-		}
-		// If the tab is hidden, don't switch to it.
-		if (tab.hidden) {
-			if (index == 0) {
-				console.log("leftmost tab is hidden");
-				return;
-			}
-			// Repeat the current iteration without delay
-			index--;
-			i--;
-			continue;
-		}
-
-		if (await activateTabById(tab.id)) {
-			return;
-		}
-
-		// The removed tab, which may be the leftmost, is still alive and active internally.
-		const waitForDeathMsec = 50;
-		await delay(waitForDeathMsec);
-	}
-}
-
-function hasActivationJustRecentlyHappened(windowId) {
-	const maxDeltaMsec = 50;  // New tab activation will take at least 50 msec after removal.
-
-	function tester() {
-		const deltaMsec = new Date() - activeTab[windowId].time;
-		console.log(
-			`The last activation, index#${activeTab[windowId].index} of window#${windowId},`,
-			`happened ${deltaMsec} ms before.`);
-		return deltaMsec < maxDeltaMsec;
-	}
-
-	return tester() ||  // activeTab is not rewrited yet?
-		delay(maxDeltaMsec / 5).then(tester);  // XXX: This is a dirty hack to wait for changing activation info.
-}
-
-browser.tabs.onActivated.addListener(activeInfo => {
-	browser.tabs.get(activeInfo.tabId)
-		.then(tab => {
-			prevActiveTab[tab.windowId] = activeTab[tab.windowId];
-			activeTab[tab.windowId] = { index: tab.index, id: tab.id, time: +new Date() };
+function setAllSuccessors(windowId, independentTabId = undefined) { // XXX: This might be slow when too many tabs are open.
+	browser.tabs.query({ hidden: false, windowId: windowId })
+		.then(tabs => {
+			const idsRTL = (independentTabId === undefined ? tabs : tabs.filter(a => a != independentTabId))
+				.sort((a, b) => b.index - a.index).map(a => a.id);
+			const $ = idsRTL.length;
+			browser.tabs.moveInSuccession(idsRTL, $ >= 2 ? idsRTL[$ - 2] : undefined);
 		});
+}
+
+/// Listeners for tab state change
+browser.tabs.onAttached.addListener((tabId, attachInfo) => {
+	setAllSuccessors(attachInfo.newWindowId);
 });
 
-browser.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
-	if (removeInfo.isWindowClosing) {
-		return;
-	}
+browser.tabs.onCreated.addListener(tab => {
+	setAllSuccessors(tab.WindowId);
+});
 
-	console.log(`onRemoved: id#${tabId}`);
-	const visibleTabs = await browser.tabs.query({ currentWindow: true, hidden: false });
-	const windowId = removeInfo.windowId;
-
-	if (!await hasActivationJustRecentlyHappened(windowId)) {
-		// The current active tab might not be newly activated by removal.
-		console.log("onRemoved: Not active tab has been removed.");
-		return;
-	}
-
-	function tabsLengthAfterRemoval() {
-		if (visibleTabs.some(tab => tab.id == tabId)) {
-			// The removed tab info is retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is true.
-			console.log("onRemoved: Animation mode!");
-			return visibleTabs.length - 1;
-		}
-		else {
-			// The removed tab info is NOT retrievable! In this case, maybe "toolkit.cosmeticAnimations.enabled" pref is false.
-			console.log("onRemoved: Non-animation mode!");
-			return visibleTabs.length;
-		}
-	}
-
-	if (tabsLengthAfterRemoval() < 2) {
-		console.log("onRemoved: No-op.");
-		return;
-	}
-
-	const removed = prevActiveTab[windowId];
-	if (removed.id !== tabId) {
-		console.log("onRemoved: Something wrong!");
-		return;
-	}
-
-	const prioritizer = tab => tab.index >= removed.index ? -tab.index : tab.index;
-	// console.log(`${visibleTabs.map(t => t.index)} -> ${visibleTabs.map(prioritizer)}, r=${removed.index}`);
-	// E.g., [0,1,3,4,6] will be mapped to [0,1,-3,-4,-6] when removed.index === 3.
-	const toActivateTab = visibleTabs.reduce((a, b) => prioritizer(a) > prioritizer(b) ? a : b);  // The tab with the max prio
-
-	console.log(
-		"onRemoved: The previous active tab,",
-		`index#${removed.index} of window#${windowId}, has been removed`,
-		"and other tab has already been activated.",
-		`So activate the appropriate tab of index#${toActivateTab.index} newly!`
-	);
-
-	activateTab(windowId, toActivateTab.index);
+browser.tabs.onDetached.addListener((tabId, detachInfo) => {
+	setAllSuccessors(detachInfo.oldWindowId);
 });
 
 browser.tabs.onMoved.addListener((tabId, moveInfo) => {
-	if (activeTab[moveInfo.windowId].id == tabId) {
-		activeTab[moveInfo.windowId] = { index: moveInfo.toIndex, id: tabId, time: +new Date() };
-		prevActiveTab[moveInfo.windowId] = activeTab[moveInfo.windowId];
-	}
+	setAllSuccessors(moveInfo.windowId);
 });
 
-browser.windows.onFocusChanged.addListener(windowId => {
-	browser.tabs.query({ active: true, windowId: windowId })
-		.then(tabs => {
-			if (tabs.length) {
-				activeTab[windowId] = { index: tabs[0].index, id: tabs[0].id, time: +new Date() };
-				prevActiveTab[windowId] = activeTab[windowId];
-			}
-		});
+browser.tabs.onRemoved.addListener((tabId, removeInfo) => {
+	if (removeInfo.isWindowClosing) {
+		return;
+	}
+	setAllSuccessors(removeInfo.windowId, tabId); // The removed tab info will be retrievable if "toolkit.cosmeticAnimations.enabled" pref is true.
 });
+
+browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+	setAllSuccessors(tab.windowId);
+}, { properties: ["hidden"] }
+);
+
+/// For debugging
+function _setSuccessor(tabId, successorTabId) {
+	browser.tabs.update(tabId, { successorTabId: successorTabId });
+}
+
+function _dumpSuccessor(tabId) {
+	browser.tabs.get(tabId).then(t => console.log(`${t.id} => ${t.successorTabId}`));
+}
+
+function _moveInWindow(tabId, newIndex) {
+	browser.tabs.move(tabId, { index: newIndex });
+}
+
+function _enumTabs(windowId) {
+	browser.tabs.query({ windowId: windowId }).then(console.log);
+}
+
+function _enumWindows() {
+	browser.windows.getAll({ populate: true }).then(console.log);
+}
