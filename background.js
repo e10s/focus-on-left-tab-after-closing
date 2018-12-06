@@ -23,18 +23,22 @@ function setAllSuccessors(windowId, independentTabId = undefined) { // XXX: This
 
 /// Listeners for tab state change
 browser.tabs.onAttached.addListener((tabId, attachInfo) => {
+	console.log(`onAttached: t#${tabId}, w#${attachInfo.newWindowId}[${attachInfo.newPosition}]`);
 	setAllSuccessors(attachInfo.newWindowId);
 });
 
 browser.tabs.onCreated.addListener(tab => {
+	console.log(`onCreated: t#${tab.id}, w#${tab.windowId}[${tab.index}]`);
 	setAllSuccessors(tab.WindowId);
 });
 
 browser.tabs.onDetached.addListener((tabId, detachInfo) => {
+	console.log(`onDetached: t#${tabId}, w#${detachInfo.oldWindowId}[${detachInfo.oldPosition}]`);
 	setAllSuccessors(detachInfo.oldWindowId);
 });
 
 browser.tabs.onMoved.addListener((tabId, moveInfo) => {
+	console.log(`onMoved: t#${tabId}, w#${moveInfo.windowId}[${moveInfo.fromIndex}]=>[${moveInfo.toIndex}]`);
 	setAllSuccessors(moveInfo.windowId);
 });
 
@@ -42,10 +46,12 @@ browser.tabs.onRemoved.addListener((tabId, removeInfo) => {
 	if (removeInfo.isWindowClosing) {
 		return;
 	}
+	console.log(`onRemoved: t#${tabId}, w#${removeInfo.windowId}`);
 	setAllSuccessors(removeInfo.windowId, tabId); // The removed tab info will be retrievable if "toolkit.cosmeticAnimations.enabled" pref is true.
 });
 
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+	console.log(`onUpdated: t#${tabId}, w#${tab.windowId}[${tab.index}], hidden=>${changeInfo.hidden}`);
 	setAllSuccessors(tab.windowId);
 }, { properties: ["hidden"] }
 );
@@ -64,9 +70,13 @@ function _moveInWindow(tabId, newIndex) {
 }
 
 function _enumTabs(windowId) {
-	browser.tabs.query({ windowId: windowId }).then(console.log);
+	browser.tabs.query({ windowId: windowId }).then(a => console.table(a.map(_filterTabInfo)));
 }
 
 function _enumWindows() {
-	browser.windows.getAll({ populate: true }).then(console.log);
+	browser.windows.getAll({ populate: true }).then(a => console.table(a.map(w => ({ id: w.id, tabs: w.tabs.map(_filterTabInfo) }))));
+}
+
+function _filterTabInfo(tab) {
+	return { index: tab.index, id: tab.id, successorTabId: tab.successorTabId, hidden: tab.hidden };
 }
