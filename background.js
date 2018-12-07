@@ -21,6 +21,16 @@ function setAllSuccessors(windowId, independentTabId = undefined) { // XXX: This
 		});
 }
 
+function setAllSuccessorsForAllWindows() {
+	browser.windows.getAll({ populate: true })
+		.then(a => {
+			a.forEach(w => setAllSuccessors(w.id));
+		});
+}
+
+/// Special initialization for tabs opened "statically" at startup
+browser.runtime.onStartup.addListener(setAllSuccessorsForAllWindows); // Note: This seems not to be called when booted by `web-ext run`.
+
 /// Listeners for tab state change
 browser.tabs.onAttached.addListener((tabId, attachInfo) => {
 	console.log(`onAttached: t#${tabId}, w#${attachInfo.newWindowId}[${attachInfo.newPosition}]`);
