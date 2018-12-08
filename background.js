@@ -11,10 +11,10 @@
 // [ A ] [ B ] [ C ] [HIDDEN] [ D ]
 //    ====>
 
-function setAllSuccessors(windowId, independentTabId = undefined) { // XXX: This might be slow when too many tabs are open.
+function setAllSuccessors(windowId, ignoredTabId) { // XXX: This might be slow when too many tabs are open.
 	browser.tabs.query({ hidden: false, windowId: windowId })
 		.then(tabs => {
-			const idsRTL = (independentTabId === undefined ? tabs : tabs.filter(a => a != independentTabId))
+			const idsRTL = (ignoredTabId === undefined ? tabs : tabs.filter(a => a.id != ignoredTabId))
 				.sort((a, b) => b.index - a.index).map(a => a.id);
 			const $ = idsRTL.length;
 			browser.tabs.moveInSuccession(idsRTL, $ >= 2 ? idsRTL[$ - 2] : undefined);
