@@ -47,8 +47,12 @@ browser.tabs.onDetached.addListener((tabId, detachInfo) => {
 	setAllSuccessors(detachInfo.oldWindowId);
 });
 
-browser.tabs.onMoved.addListener((tabId, moveInfo) => {
+browser.tabs.onMoved.addListener(async (tabId, moveInfo) => {
 	console.log(`onMoved: t#${tabId}, w#${moveInfo.windowId}[${moveInfo.fromIndex}]=>[${moveInfo.toIndex}]`);
+	if ((await browser.tabs.get(tabId)).hidden) {
+		console.log(`onMoved: t#${tabId} is hidden`);
+		return;
+	}
 	setAllSuccessors(moveInfo.windowId);
 });
 
