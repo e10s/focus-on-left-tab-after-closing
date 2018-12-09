@@ -14,7 +14,7 @@
 function setAllSuccessors(windowId, ignoredTabId) { // XXX: This might be slow when too many tabs are open.
 	browser.tabs.query({ hidden: false, windowId: windowId })
 		.then(tabs => {
-			const idsRTL = (ignoredTabId === undefined ? tabs : tabs.filter(a => a.id != ignoredTabId))
+			const idsRTL = (ignoredTabId === undefined ? tabs : tabs.filter(a => a.id !== ignoredTabId))
 				.sort((a, b) => b.index - a.index).map(a => a.id);
 			const $ = idsRTL.length;
 			browser.tabs.moveInSuccession(idsRTL, $ >= 2 ? idsRTL[$ - 2] : undefined);
@@ -69,7 +69,7 @@ browser.tabs.onRemoved.addListener((tabId, removeInfo) => {
 		return;
 	}
 	console.log(`onRemoved: t#${tabId}, w#${removeInfo.windowId}`);
-	setAllSuccessors(removeInfo.windowId, tabId); // The removed tab info will be retrievable if "toolkit.cosmeticAnimations.enabled" pref is true.
+	setAllSuccessors(removeInfo.windowId, tabId); // The removed tab info might be retrievable if "toolkit.cosmeticAnimations.enabled" pref is true.
 });
 
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
