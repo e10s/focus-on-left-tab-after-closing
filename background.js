@@ -28,6 +28,14 @@ function setAllSuccessorsForAllWindows() {
 		});
 }
 
+/// Initializers
+browser.runtime.onInstalled.addListener(details => {
+	if (details.reason !== "install" && details.reason !== "update") {
+		return;
+	}
+	setAllSuccessorsForAllWindows();
+});
+
 /// Special initialization for tabs opened "statically" at startup
 browser.runtime.onStartup.addListener(setAllSuccessorsForAllWindows); // Note: This seems not to be called when booted by `web-ext run`.
 
