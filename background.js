@@ -47,7 +47,7 @@ browser.tabs.onAttached.addListener((tabId, attachInfo) => {
 
 browser.tabs.onCreated.addListener(tab => {
 	console.log(`onCreated: t#${tab.id}, w#${tab.windowId}[${tab.index}]`);
-	setAllSuccessors(tab.WindowId);
+	setAllSuccessors(tab.windowId);
 });
 
 browser.tabs.onDetached.addListener((tabId, detachInfo) => {
