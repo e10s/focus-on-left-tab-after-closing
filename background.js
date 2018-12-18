@@ -12,6 +12,7 @@
 //    ====>
 
 function setAllSuccessors(windowId, ignoredTabId) { // XXX: This might be slow when too many tabs are open.
+	console.log(`setAllSuccessors: w#${windowId}`);
 	browser.tabs.query({ hidden: false, windowId: windowId })
 		.then(tabs => {
 			const idsRTL = (ignoredTabId === undefined ? tabs : tabs.filter(a => a.id !== ignoredTabId))
